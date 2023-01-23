@@ -38,3 +38,29 @@ class RemoveManagerView(generics.DestroyAPIView):
         managers.user_set.remove(user)
 
         return Response(status.HTTP_200_OK)
+
+
+@permission_classes([IsAdminUser])
+class DeliveryCrewView(generics.ListCreateAPIView):
+    queryset = Group.objects.get(name="Delivery crew").user_set.all()
+    serializer_class = UserSerializer
+
+    def post(self, request, *args, **kwargs):
+        if username := request.POST["username"]:
+            user = get_object_or_404(User, username=username)
+            managers = Group.objects.get(name="Delivery crew")
+            managers.user_set.add(user)
+
+            return Response(status.HTTP_201_CREATED)
+
+        return Response({"message": "error"}, status.HTTP_400_BAD_REQUEST)
+
+
+@permission_classes([IsAdminUser])
+class RemoveDeliveryCrewView(generics.DestroyAPIView):
+    def delete(self, request, *args, **kwargs):
+        user = get_object_or_404(User, pk=kwargs["pk"])
+        managers = Group.objects.get(name="Delivery crew")
+        managers.user_set.remove(user)
+
+        return Response(status.HTTP_200_OK)
