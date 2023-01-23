@@ -13,6 +13,27 @@ class MenuItemsView(generics.ListCreateAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
 
+    def post(self, request, *args, **kwargs):
+        if (
+            request.user.is_anonymous
+            or not request.user.groups.filter(name="Manager").exists()
+        ):
+            return Response(status.HTTP_403_FORBIDDEN)
+
+        return super().post(request, *args, **kwargs)
+
+
+class MenuItemView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+
+    def get_permissions(self):
+        permission_classes = []
+        if self.request.method != "GET":
+            permission_classes = [IsAdminUser]
+
+        return [permission() for permission in permission_classes]
+
 
 @permission_classes([IsAdminUser])
 class ManagersView(generics.ListCreateAPIView):
