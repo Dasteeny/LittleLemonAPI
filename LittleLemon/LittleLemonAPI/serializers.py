@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Category, MenuItem
+from .models import Cart, Category, MenuItem
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
@@ -21,3 +21,21 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "username", "email"]
         extra_kwargs = {"email": {"read_only": True}}
+
+
+class CartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cart
+        fields = [
+            "id",
+            "menuitem",
+            "quantity",
+            "unit_price",
+            "price",
+        ]
+        extra_kwargs = {
+            "quantity": {"min_value": 1},
+            "unit_price": {"read_only": True},
+            "price": {"read_only": True},
+            "menuitem": {"label": "Menu Item"},
+        }

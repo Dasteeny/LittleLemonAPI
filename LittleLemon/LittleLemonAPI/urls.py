@@ -9,7 +9,7 @@ urlpatterns = [
     path("groups/manager/users/<int:pk>", views.RemoveManagerView.as_view()),
     path("groups/delivery-crew/users", views.DeliveryCrewView.as_view()),
     path("groups/delivery-crew/users/<int:pk>", views.RemoveDeliveryCrewView.as_view()),
-    # path("cart/menu-items", ),
+    path("cart/menu-items", views.CartView.as_view()),
     # path("cart/orders", ),
     # path("cart/orders/<int:pk>", ),
 ]
