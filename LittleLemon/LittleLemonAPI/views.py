@@ -7,7 +7,7 @@ from rest_framework.decorators import permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
-from .helpers import IsRestaurantStaff
+from .helpers import IsManager, IsRestaurantStaff
 from .models import Cart, MenuItem, Order, OrderItem
 from .serializers import (
     CartSerializer,
@@ -20,15 +20,14 @@ from .serializers import (
 class MenuItemsView(generics.ListCreateAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    ordering_fields = ["title", "price"]
 
-    def post(self, request, *args, **kwargs):
-        if (
-            request.user.is_anonymous
-            or not request.user.groups.filter(name="Manager").exists()
-        ):
-            return Response(status.HTTP_403_FORBIDDEN)
+    def get_permissions(self):
+        permission_classes = []
+        if self.request.method == "POST":
+            permission_classes = [IsManager]
 
-        return super().post(request, *args, **kwargs)
+        return [permission() for permission in permission_classes]
 
 
 class MenuItemView(generics.RetrieveUpdateDestroyAPIView):
@@ -133,12 +132,13 @@ class CartView(generics.ListCreateAPIView, generics.DestroyAPIView):
 @permission_classes([IsAuthenticated])
 class OrderView(generics.ListCreateAPIView):
     serializer_class = OrderSerializer
+    ordering_fields = ["user", "status", "total"]
 
     def get_queryset(self):
         user = self.request.user
         if user.groups.filter(name="Manager").exists():
             return Order.objects.all()
-        elif user.groups.filter(name="Delivery crew").exists():
+        if user.groups.filter(name="Delivery crew").exists():
             return Order.objects.filter(delivery_crew=user)
 
         return Order.objects.filter(user=user)
