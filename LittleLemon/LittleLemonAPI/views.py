@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.contrib.auth.models import Group, User
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
@@ -5,8 +7,14 @@ from rest_framework.decorators import permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Cart, MenuItem
-from .serializers import CartSerializer, MenuItemSerializer, UserSerializer
+from .helpers import IsRestaurantStaff
+from .models import Cart, MenuItem, Order, OrderItem
+from .serializers import (
+    CartSerializer,
+    MenuItemSerializer,
+    OrderSerializer,
+    UserSerializer,
+)
 
 
 class MenuItemsView(generics.ListCreateAPIView):
@@ -112,7 +120,7 @@ class CartView(generics.ListCreateAPIView, generics.DestroyAPIView):
             price=price,
         )
         new_cart.save()
-        return Response(CartSerializer(new_cart).data)
+        return Response(CartSerializer(new_cart).data, status.HTTP_201_CREATED)
 
     def delete(self, request, *args, **kwargs):
         user = self.request.user
@@ -120,3 +128,65 @@ class CartView(generics.ListCreateAPIView, generics.DestroyAPIView):
         cart_items.delete()
 
         return Response(status.HTTP_200_OK)
+
+
+@permission_classes([IsAuthenticated])
+class OrderView(generics.ListCreateAPIView):
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.groups.filter(name="Manager").exists():
+            return Order.objects.all()
+        elif user.groups.filter(name="Delivery crew").exists():
+            return Order.objects.filter(delivery_crew=user)
+
+        return Order.objects.filter(user=user)
+
+    def post(self, request, *args, **kwargs):
+        user = self.request.user
+        if (
+            not user.groups.filter(name="Manager").exists()
+            and not user.groups.filter(name="Delivery crew").exists()
+        ):
+            cart_items = Cart.objects.select_related("menuitem").filter(user=user)
+            if not cart_items:
+                return Response(status.HTTP_412_PRECONDITION_FAILED)
+
+            total = sum([item.price for item in cart_items])
+            order = Order(user=user, total=total, date=datetime.now())
+            order.save()
+            for item in cart_items:
+                order_item = OrderItem(
+                    order=order,
+                    menuitem=item.menuitem,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    price=item.price,
+                )
+                order_item.save()
+            cart_items.delete()
+            return Response(status.HTTP_201_CREATED)
+
+        return Response(status.HTTP_204_NO_CONTENT)
+
+
+@permission_classes([IsAuthenticated])
+class SingleOrderView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if (
+            user.groups.filter(name="Manager").exists()
+            or user.groups.filter(name="Delivery crew").exists()
+        ):
+            return Order.objects.all()
+        return Order.objects.filter(user=user)
+
+    def get_permissions(self):
+        permission_classes = []
+        if self.request.method in ["PUT", "PATCH", "DELETE"]:
+            permission_classes = [IsRestaurantStaff]
+
+        return [permission() for permission in permission_classes]
